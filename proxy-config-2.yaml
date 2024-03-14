@@ -1,0 +1,14 @@
+---
+virtualClusters:
+  demo:
+    targetCluster:
+      bootstrap_servers: localhost:9092
+    clusterNetworkAddressConfigProvider:
+      type: PortPerBrokerClusterNetworkAddressConfigProvider
+      config:
+        bootstrapAddress: localhost:9195
+        numberOfBrokerPorts: 2
+    logNetwork: false
+    logFrames: false
+filters:
+  - type: RebalanceFilterFactory
