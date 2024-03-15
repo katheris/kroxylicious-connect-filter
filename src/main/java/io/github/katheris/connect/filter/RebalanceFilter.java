@@ -100,7 +100,7 @@ public class RebalanceFilter implements HeartbeatResponseFilter, FindCoordinator
 
     @Override
     public CompletionStage<ResponseFilterResult> onJoinGroupResponse(short apiVersion, ResponseHeaderData header, JoinGroupResponseData response, FilterContext context) {
-        if ("connect".equals(response.protocolType())) {
+        if (response.memberId() != null && response.memberId().startsWith("worker")) {
             printApiCall("<= JoinGroup", List.of(
                     format("generation_id", String.valueOf(response.generationId())),
                     format("protocol_name", formatProtocolName(String.valueOf(response.protocolName()))),
