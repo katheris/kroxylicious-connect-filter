@@ -1,6 +1,7 @@
 package io.github.katheris.connect.filter;
 
 
+import io.github.katheris.connect.util.Formatter;
 import io.kroxylicious.proxy.filter.FilterContext;
 import io.kroxylicious.proxy.filter.FindCoordinatorRequestFilter;
 import io.kroxylicious.proxy.filter.FindCoordinatorResponseFilter;
@@ -30,8 +31,10 @@ import java.util.stream.Collectors;
 import static io.github.katheris.connect.util.Formatter.deserializeAssignment;
 import static io.github.katheris.connect.util.Formatter.format;
 import static io.github.katheris.connect.util.Formatter.formatAssignment;
+import static io.github.katheris.connect.util.Formatter.formatCollection;
 import static io.github.katheris.connect.util.Formatter.formatMetadata;
 import static io.github.katheris.connect.util.Formatter.formatProtocolName;
+import static io.github.katheris.connect.util.Formatter.highlight;
 import static io.github.katheris.connect.util.Formatter.printApiCall;
 
 public class RebalanceFilter implements HeartbeatResponseFilter, FindCoordinatorRequestFilter, FindCoordinatorResponseFilter,
@@ -44,7 +47,7 @@ public class RebalanceFilter implements HeartbeatResponseFilter, FindCoordinator
     @Override
     public CompletionStage<ResponseFilterResult> onHeartbeatResponse(short apiVersion, ResponseHeaderData header, HeartbeatResponseData response, FilterContext context) {
         if (response.errorCode() != 0) {
-            printApiCall("<= Heartbeat", List.of(format("error_code", Errors.forCode(response.errorCode()).name())));
+            printApiCall(Formatter.Colour.RED.print( "<= Heartbeat"), List.of(highlight("error_code", Errors.forCode(response.errorCode()).name())));
         }
         return context.forwardResponse(header, response);
     }
@@ -56,7 +59,7 @@ public class RebalanceFilter implements HeartbeatResponseFilter, FindCoordinator
     public CompletionStage<RequestFilterResult> onFindCoordinatorRequest(short apiVersion, RequestHeaderData header, FindCoordinatorRequestData request,
                                                                          FilterContext context) {
         if (request.coordinatorKeys().contains("connect-cluster")) {
-            printApiCall("=> FindCoordinator", List.of(
+            printApiCall(Formatter.Colour.PURPLE.print( "=> FindCoordinator"), List.of(
                     format("key_type", String.valueOf(request.keyType())),
                     format("coordinator_keys", String.join(", ", request.coordinatorKeys()))));
         }
@@ -70,11 +73,11 @@ public class RebalanceFilter implements HeartbeatResponseFilter, FindCoordinator
                 .stream()
                 .filter(coordinator -> "connect-cluster".equals(coordinator.key()))
                 .findFirst();
-        connectCoordinator.ifPresent(coordinator -> printApiCall("<= FindCoordinator", List.of(
+        connectCoordinator.ifPresent(coordinator -> printApiCall(Formatter.Colour.PURPLE.print("<= FindCoordinator"), List.of(
                 format("key", coordinator.key()),
                 format("node_id", String.valueOf(coordinator.nodeId())),
-                format("host", coordinator.host()),
-                format("port", String.valueOf(coordinator.port()))
+                highlight("host", coordinator.host()),
+                highlight("port", String.valueOf(coordinator.port()))
         )));
         return context.forwardResponse(header, response);
     }
@@ -85,10 +88,10 @@ public class RebalanceFilter implements HeartbeatResponseFilter, FindCoordinator
     @Override
     public CompletionStage<RequestFilterResult> onJoinGroupRequest(short apiVersion, RequestHeaderData header, JoinGroupRequestData request, FilterContext context) {
         if ("connect".equals(request.protocolType())) {
-            printApiCall("=> JoinGroup", List.of(
+            printApiCall(Formatter.Colour.YELLOW.print("=> JoinGroup"), List.of(
                     format("group_id", request.groupId()),
-                    format("member_id", request.memberId()),
-                    String.join("", "protocols", request.protocols()
+                    highlight("member_id", request.memberId()),
+                    formatCollection("protocols", request.protocols()
                             .stream()
                             .map(protocol -> String.format("%n           %s%n               %s",
                                     formatProtocolName(protocol.name()),
@@ -101,17 +104,17 @@ public class RebalanceFilter implements HeartbeatResponseFilter, FindCoordinator
     @Override
     public CompletionStage<ResponseFilterResult> onJoinGroupResponse(short apiVersion, ResponseHeaderData header, JoinGroupResponseData response, FilterContext context) {
         if (response.memberId() != null && response.memberId().startsWith("worker")) {
-            printApiCall("<= JoinGroup", List.of(
-                    format("generation_id", String.valueOf(response.generationId())),
+            printApiCall(Formatter.Colour.YELLOW.print("<= JoinGroup"), List.of(
+                    highlight("generation_id", String.valueOf(response.generationId())),
                     format("protocol_name", formatProtocolName(String.valueOf(response.protocolName()))),
-                    format("leader", String.valueOf(response.leader())),
-                    format("member_id", String.valueOf(response.memberId())),
-                    String.join("", "members", response.members()
+                    highlight("leader", String.valueOf(response.leader())),
+                    highlight("member_id", String.valueOf(response.memberId())),
+                    formatCollection("members", response.members()
                             .stream()
-                            .map(member -> String.format("%n           %s%n                %s",
+                            .map(member -> String.format("%n           %s%n               %s",
                                     member.memberId(),
                                     formatMetadata(member.metadata(), response.protocolName())))
-                            .collect(Collectors.joining(",")))));
+                            .collect(Collectors.joining("")))));
         }
         return context.forwardResponse(header, response);
     }
@@ -123,17 +126,17 @@ public class RebalanceFilter implements HeartbeatResponseFilter, FindCoordinator
     @Override
     public CompletionStage<RequestFilterResult> onSyncGroupRequest(short apiVersion, RequestHeaderData header, SyncGroupRequestData request, FilterContext context) {
         if ("connect".equals(request.protocolType())) {
-            printApiCall("=> SyncGroup", List.of(
+            printApiCall(Formatter.Colour.CYAN.print("=> SyncGroup"), List.of(
                     format("group_id", request.groupId()),
-                    format("generation_id", String.valueOf(request.generationId())),
+                    highlight("generation_id", String.valueOf(request.generationId())),
                     format("member_id", request.memberId()),
                     format("protocol_name", formatProtocolName(request.protocolName())),
-                    String.join("", "assignments", request.assignments()
+                    formatCollection("assignments", request.assignments()
                             .stream()
                             .map(member -> String.format("%n           %s%n                %s",
                                     member.memberId(),
                                     formatAssignment(deserializeAssignment(member.assignment(), request.protocolName()))))
-                            .collect(Collectors.joining(",")))));
+                            .collect(Collectors.joining("")))));
         }
         return context.forwardRequest(header, request);
     }
@@ -141,10 +144,10 @@ public class RebalanceFilter implements HeartbeatResponseFilter, FindCoordinator
     @Override
     public CompletionStage<ResponseFilterResult> onSyncGroupResponse(short apiVersion, ResponseHeaderData header, SyncGroupResponseData response, FilterContext context) {
         if ("connect".equals(response.protocolType())) {
-            printApiCall("<= SyncGroup", List.of(
+            printApiCall(Formatter.Colour.CYAN.print("<= SyncGroup"), List.of(
                     format("error_code", String.valueOf(response.errorCode())),
                     format("protocol_name", formatProtocolName(response.protocolName())),
-                    formatAssignment(deserializeAssignment(response.assignment(), response.protocolName()))));
+                    Formatter.Colour.GREEN.print(formatAssignment(deserializeAssignment(response.assignment(), response.protocolName())))));
         }
         return context.forwardResponse(header, response);
     }
